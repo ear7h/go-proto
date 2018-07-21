@@ -14,6 +14,7 @@ import (
 
 var BuildProto = regexp.MustCompile(`//\s*\+build\s*proto`)
 var ProtoPragmaIgnore = regexp.MustCompile(`//\s*go:proto\s*ignore`)
+var ProtoPragmaClear= regexp.MustCompile(`//\s*go:proto\s*clear`)
 var ProtoPragma = regexp.MustCompile(`//\s*go:proto\s`)
 var Caps = regexp.MustCompile(`^[A-Z]\w*`)
 
@@ -24,12 +25,12 @@ const (
 	UpperCaseUints = "Uints"
 	LowerCaseUints = "uints"
 	UpperCaseUintN = "UintN"
-	LowerCaseUintN = "uintn"
+	LowerCaseUintN = "uintN"
 
 	UpperCaseInts = "Ints"
 	LowerCaseInts = "ints"
 	UpperCaseIntN = "IntN"
-	LowerCaseIntN = "intn"
+	LowerCaseIntN = "intN"
 
 )
 
@@ -104,7 +105,30 @@ func ParseVal(str string) []string {
 	return ret
 }
 
-func PutVars(str string, vars map[string][]string) error {
+const (
+	MethodLower = "lower"
+	MethodCapital = "capital"
+	MethodSizeBits = "sizebits"
+	MethodSizeBytes = "sizebytes"
+)
+
+type Method struct {
+	Receiver, Name string
+
+}
+
+// methods array
+// []string{ ".", "receiver", "method"}
+// the functions and method are evaluated from right to left
+func ParseMethod(valStr string) (Method, error) {
+	arr := strings.Split(valStr, ".")
+	if len(arr) != 2{
+		return Method{}, errors.New("methods must be of the form reciver.method")
+	}
+	return Method{Receiver: arr[0], Name: arr[1]}, nil
+}
+
+func PutVars(str string, vars map[string][]string, meths map[string]Method) error {
 	fmt.Println("---putvar--\n\n", str)
 	defer fmt.Println("\n\n---putvar--")
 	for _, v := range strings.Split(str, " ") {
@@ -123,38 +147,65 @@ func PutVars(str string, vars map[string][]string) error {
 			return errors.New("bad key")
 		}
 
-		if keyVal[1] == "/" {
+		val := keyVal[1]
+		if val == "/" {
 			delete(vars, key)
+			delete(meths, key)
+		} else if strings.Contains(val, ".") {
+			// T=intN T1=T.sizeof
+			var err error
+			meths[key], err = ParseMethod(val)
+			if err != nil {
+				return err
+			}
 		} else {
 			vars[key] = ParseVal(keyVal[1])
 		}
-
 	}
 
 	return nil
 }
 
-func ReplaceBlock(str string, vars map[string][]string, out io.Writer) {
+func ReplaceMeths(str string, meths map[string]Method, state map[string]string) string {
+
+	for k, v := range meths {
+		replace := ExecMethod(state[v.Receiver], v.Name)
+		str = regexp.
+			MustCompile(fmt.Sprintf(ReplaceRegexFmt, k)).
+			ReplaceAllString(str, replace+"$2")
+	}
+
+	return str
+}
+
+func ReplaceBlock(str string, vars map[string][]string, meths map[string]Method, state map[string]string, out io.Writer) {
 	fmt.Println("ReplaceBlock\n", str, "\n", vars)
 
 	if len(vars) == 0 {
+		str = ReplaceMeths(str, meths, state)
+
 		out.Write([]byte(str))
 		return
 	}
 
 	for k, v := range vars {
 		delete(vars, k)
+		if v[0] == "." {
+
+		}
 		for _, vv := range v {
 			newStr := regexp.
 				MustCompile(fmt.Sprintf(ReplaceRegexFmt, k)).
 				ReplaceAllString(str, vv+"$2")
-			ReplaceBlock(newStr, vars, out)
+			state[k] = vv
+			ReplaceBlock(newStr, vars, meths, state, out)
 		}
 	}
 }
 
 func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 	vars := map[string][]string{}
+	meths := map[string]Method{}
 	block := &strings.Builder{}
 	for s.Scan() {
 		n++
@@ -166,11 +217,16 @@ func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 				break
 			}
 			fmt.Println("ignore:\n", s.Text())
+		} else if ProtoPragmaClear.MatchString(line) {
+			ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
+			block.Reset()
+			fmt.Println("clear:\n", s.Text())
+			out.Write(append(s.Bytes(), '\n'))
 		} else if ProtoPragma.MatchString(line) {
-			ReplaceBlock(block.String(), vars, out)
+			ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
 			block.Reset()
 
-			err = PutVars(line, vars)
+			err = PutVars(line, vars, meths)
 			if err != nil {
 				return n, err
 			}
@@ -186,6 +242,8 @@ func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 	if err := s.Err(); err != nil {
 		return n, err
 	}
+
+	ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
 
 	return n, nil
 }
