@@ -206,12 +206,12 @@ func CheckBuildProto(s *bufio.Scanner) error {
 }
 
 func GenName(name string)string {
-	if strings.HasSuffix(name, ".go") {
+	if strings.HasSuffix(name, "_proto.go") {
+		return strings.Replace(name, "_proto.go", "_gen.go", 1)
+	} else if strings.HasSuffix(name, ".go") {
 		return strings.Replace(name, ".go", "_gen.go", 1)
-	} else if strings.Contains(name, ".") {
-		return name + ".gen.go"
 	} else {
-		return name + "_gen.go"
+		return name + ".gen.go"
 	}
 }
 
