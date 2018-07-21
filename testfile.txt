@@ -1,0 +1,12 @@
+//+build proto
+
+package main
+
+//go:proto ignore
+type T int64
+
+const (
+//go:proto T=IntN,UintN Tn=T.sizebits
+    SizeT = Tn
+//go:proto clear
+)
