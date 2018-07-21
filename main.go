@@ -24,12 +24,12 @@ const (
 	UpperCaseUints = "Uints"
 	LowerCaseUints = "uints"
 	UpperCaseUintN = "UintN"
-	LowerCaseUintN = "uintn"
+	LowerCaseUintN = "uintN"
 
 	UpperCaseInts = "Ints"
 	LowerCaseInts = "ints"
 	UpperCaseIntN = "IntN"
-	LowerCaseIntN = "intn"
+	LowerCaseIntN = "intN"
 
 )
 
@@ -104,6 +104,16 @@ func ParseVal(str string) []string {
 	return ret
 }
 
+const (
+	MethodLower = "lower"
+	MethodCapital = "capital"
+	MethodRegex = "regex" // todo
+)
+
+func ParseMethod(receiver, method string) ([]string) {
+	return append([]string{"."}, strings.Split(method, ".")...)
+}
+
 func PutVars(str string, vars map[string][]string) error {
 	fmt.Println("---putvar--\n\n", str)
 	defer fmt.Println("\n\n---putvar--")
@@ -123,12 +133,17 @@ func PutVars(str string, vars map[string][]string) error {
 			return errors.New("bad key")
 		}
 
-		if keyVal[1] == "/" {
+		val := keyVal[1]
+		if val == "/" {
 			delete(vars, key)
+		} else if strings.Contains(val, ".") {
+			// T=intN T1=T.div.8.regex./(int)()/*1
+			i := strings.Index(val, ".")
+			ParseMethod(val[:i], val[i+1:])
+
 		} else {
 			vars[key] = ParseVal(keyVal[1])
 		}
-
 	}
 
 	return nil
