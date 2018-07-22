@@ -222,6 +222,10 @@ func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 			block.Reset()
 			fmt.Println("clear:\n", s.Text())
 			out.Write(append(s.Bytes(), '\n'))
+
+			//clear
+			vars = map[string][]string{}
+			meths = map[string]Method{}
 		} else if ProtoPragma.MatchString(line) {
 			ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
 			block.Reset()
