@@ -32,6 +32,8 @@ const (
 	UpperCaseIntN = "IntN"
 	LowerCaseIntN = "intN"
 
+	UpperCaseFloats = "Floats"
+	LowerCaseFloats = "floats"
 )
 
 const (
@@ -70,6 +72,10 @@ func ParseVal(str string) []string {
 			for _, v := range Uints[1:] {
 				set[v.String()] = item
 			}
+		case LowerCaseFloats:
+			for _, v := range Floats {
+				set[v.String()] = item
+			}
 		case UpperCaseBuiltin:
 			for _, v := range Builtins {
 				set[strings.Title(v.String())] = item
@@ -88,6 +94,10 @@ func ParseVal(str string) []string {
 			}
 		case UpperCaseUintN:
 			for _, v := range Uints[1:] {
+				set[strings.Title(v.String())] = item
+			}
+		case UpperCaseFloats:
+			for _, v := range Floats {
 				set[strings.Title(v.String())] = item
 			}
 		default:
