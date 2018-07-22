@@ -10,7 +10,7 @@ __key elements:__
 * `//go:proto ignore`
     * this will tell the generator to ignore the next line
 * `//go:proto T=Builtin`
-    * This is a type variable definition. Code will be generated such that `T` is ![sensibly](#variable-replace) replaced with all builtin type names capitalized (excluding complex)
+    * This is a type variable definition. Code will be generated such that `T` is [sensibly](#variable-replace) replaced with all builtin type names capitalized (excluding complex)
         * the variable name must start with a capital and can only contain alphanumerics and underscore"
         * `T` can be used in tokens/idetifiers (ie function names) as long as they are properly camel cased
             * `func TAdd(T) T` 
@@ -22,7 +22,9 @@ __key elements:__
         * syntax: `//go:proto T1=uints,ints T2=uints,ints`
         * This would create a sort of matrix and code would be generated
 * `//go:proto T:/`
-    * the generator is stateful, and this pragma will remove the previously set value from the variable `T` 
+    * the generator is stateful, and this pragma will remove the previously set value from the variable `T`
+* `//go:proto clear`
+    * clears the variables
 
 run `go-proto` or `go-proto .` or `go-proto types_pointers_proto.go`
 
