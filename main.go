@@ -45,7 +45,14 @@ var item = setItem{}
 
 func ParseVal(str string) []string {
 	vals := strings.Split(str, ",")
+	expanded := []string{}
 	set := map[string]struct{}{}
+	add := func(s string) {
+		fmt.Println("add: ", s)
+		set[s] = item
+		expanded = append(expanded, s)
+		fmt.Println(set, expanded)
+	}
 
 	L:
 	for _, v := range vals {
@@ -54,63 +61,69 @@ func ParseVal(str string) []string {
 			continue L
 		case LowerCaseBuiltin:
 			for _, v := range Builtins {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case LowerCaseInts:
 			for _, v := range Ints {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case LowerCaseIntN:
 			for _, v := range Ints[1:] {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case LowerCaseUints:
 			for _, v := range Uints {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case LowerCaseUintN:
 			for _, v := range Uints[1:] {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case LowerCaseFloats:
 			for _, v := range Floats {
-				set[v.String()] = item
+				add(v.String())
 			}
 		case UpperCaseBuiltin:
 			for _, v := range Builtins {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		case UpperCaseInts:
 			for _, v := range Ints {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		case UpperCaseIntN:
 			for _, v := range Ints[1:] {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		case UpperCaseUints:
 			for _, v := range Uints {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		case UpperCaseUintN:
 			for _, v := range Uints[1:] {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		case UpperCaseFloats:
 			for _, v := range Floats {
-				set[strings.Title(v.String())] = item
+				add(strings.Title(v.String()))
 			}
 		default:
-			set[v] = item
+			add(v)
 		}
 	}
 
 	ret := make([]string, len(set))
 	i := 0
-	for k := range set {
-		ret[i] = k
-		i++
+	// ensure predictable order
+	for _,v := range expanded {
+		if _, ok := set[v];ok {
+			ret[i] = v
+			delete(set, v)
+			i++
+		}
 	}
+
+	fmt.Println("vals: ", ret)
 
 	return ret
 }
@@ -138,7 +151,7 @@ func ParseMethod(valStr string) (Method, error) {
 	return Method{Receiver: arr[0], Name: arr[1]}, nil
 }
 
-func PutVars(str string, vars map[string][]string, meths map[string]Method) error {
+func PutVars(str string, vars map[string][]string, varOrder *[]string, meths map[string]Method, methsOrder *[]string) error {
 	fmt.Println("---putvar--\n\n", str)
 	defer fmt.Println("\n\n---putvar--")
 	for _, v := range strings.Split(str, " ") {
@@ -168,17 +181,20 @@ func PutVars(str string, vars map[string][]string, meths map[string]Method) erro
 			if err != nil {
 				return err
 			}
+			*methsOrder = append(*methsOrder, key)
 		} else {
 			vars[key] = ParseVal(keyVal[1])
+			*varOrder = append(*varOrder, key)
 		}
 	}
 
 	return nil
 }
 
-func ReplaceMeths(str string, meths map[string]Method, state map[string]string) string {
+func ReplaceMeths(str string, meths map[string]Method, methsOrder []string, state map[string]string) string {
 
-	for k, v := range meths {
+	for _, k := range methsOrder {
+		v := meths[k]
 		replace := ExecMethod(state[v.Receiver], v.Name)
 		str = regexp.
 			MustCompile(fmt.Sprintf(ReplaceRegexFmt, k)).
@@ -188,17 +204,19 @@ func ReplaceMeths(str string, meths map[string]Method, state map[string]string) 
 	return str
 }
 
-func ReplaceBlock(str string, vars map[string][]string, meths map[string]Method, state map[string]string, out io.Writer) {
-	fmt.Println("ReplaceBlock\n", str, "\n", vars)
+func ReplaceBlock(str string, vars map[string][]string, varOrder []string, meths map[string]Method, methsOrder []string, state map[string]string, out io.Writer) {
+	fmt.Println("ReplaceBlock\n", str, "\nvars:", vars, "\norder:", varOrder)
 
 	if len(vars) == 0 {
-		str = ReplaceMeths(str, meths, state)
+		str = ReplaceMeths(str, meths, methsOrder, state)
 
 		out.Write([]byte(str))
 		return
 	}
 
-	for k, v := range vars {
+	for _, k := range varOrder {
+		v := vars[k]
+		newOrder := varOrder[1:] // queue 80s music .. .. ....
 		delete(vars, k)
 		if v[0] == "." {
 
@@ -208,14 +226,16 @@ func ReplaceBlock(str string, vars map[string][]string, meths map[string]Method,
 				MustCompile(fmt.Sprintf(ReplaceRegexFmt, k)).
 				ReplaceAllString(str, vv+"$2")
 			state[k] = vv
-			ReplaceBlock(newStr, vars, meths, state, out)
+			ReplaceBlock(newStr, vars, newOrder, meths, methsOrder, state, out)
 		}
 	}
 }
 
 func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 	vars := map[string][]string{}
+	varOrder := []string{}
 	meths := map[string]Method{}
+	methsOrder := []string{}
 	block := &strings.Builder{}
 	for s.Scan() {
 		n++
@@ -228,19 +248,20 @@ func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 			}
 			fmt.Println("ignore:\n", s.Text())
 		} else if ProtoPragmaClear.MatchString(line) {
-			ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
+			ReplaceBlock(block.String(), vars, varOrder, meths, methsOrder, map[string]string{}, out)
 			block.Reset()
 			fmt.Println("clear:\n", s.Text())
 			out.Write(append(s.Bytes(), '\n'))
 
 			//clear
 			vars = map[string][]string{}
+			varOrder = []string{}
 			meths = map[string]Method{}
 		} else if ProtoPragma.MatchString(line) {
-			ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
+			ReplaceBlock(block.String(), vars, varOrder, meths, methsOrder, map[string]string{}, out)
 			block.Reset()
 
-			err = PutVars(line, vars, meths)
+			err = PutVars(line, vars, &varOrder, meths, &methsOrder)
 			if err != nil {
 				return n, err
 			}
@@ -257,7 +278,7 @@ func DoReplace(s *bufio.Scanner, out io.Writer) (n int, err error) {
 		return n, err
 	}
 
-	ReplaceBlock(block.String(), vars, meths, map[string]string{}, out)
+	ReplaceBlock(block.String(), vars, varOrder, meths, methsOrder, map[string]string{}, out)
 
 	return n, nil
 }
