@@ -299,7 +299,9 @@ func CheckBuildProto(s *bufio.Scanner) error {
 }
 
 func GenName(name string)string {
-	if strings.HasSuffix(name, "_proto.go") {
+	if strings.HasSuffix(name, "_test_proto.go") {
+		return strings.Replace(name, "_test_proto.go", "_gen_test.go", 1)
+	} else if strings.HasSuffix(name, "_proto.go") {
 		return strings.Replace(name, "_proto.go", "_gen.go", 1)
 	} else if strings.HasSuffix(name, ".go") {
 		return strings.Replace(name, ".go", "_gen.go", 1)

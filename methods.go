@@ -22,12 +22,20 @@ func ExecMethod(receiverVal, method string) string {
 
 func SizeBits(receiverVal string) string {
 	receiverVal = strings.ToLower(receiverVal)
-	return strconv.Itoa(sizeBits(receiverVal))
+	s := sizeBits(receiverVal)
+	if s < 0 {
+		return ""
+	}
+	return strconv.Itoa(s)
 }
 
 func SizeBytes(receiverVal string) string {
 	receiverVal = strings.ToLower(receiverVal)
-	return strconv.Itoa(sizeBits(receiverVal)/8)
+	s := sizeBits(receiverVal)/8
+	if s < 0 {
+		return ""
+	}
+	return strconv.Itoa(s)
 }
 
 func sizeBits(t string) int {
